@@ -1,20 +1,19 @@
 import 'dart:async';
-
+import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'camera_view.dart';
 import 'painters/face_detector_painter.dart';
-import 'package:image/image.dart' as img;
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 
 class FaceDetectorView extends StatefulWidget {
-  const FaceDetectorView({super.key, required int this.neededImages, required this.setImages});
+  const FaceDetectorView({super.key, required int this.neededImages, required this.setPaths});
   final int neededImages;
-  final void Function(List<InputImage> confirmedImages) setImages;
+  final void Function(List<String> imgPaths) setPaths;
 
   @override
   State<FaceDetectorView> createState() => _FaceDetectorViewState();
@@ -31,7 +30,7 @@ class _FaceDetectorViewState extends State<FaceDetectorView> {
   bool _isBusy = false;
   CustomPaint? _customPaint;
   String? _text;
-  List<InputImage> _confirmedImages = [];
+  List<String> _imgPaths = [];
 
   @override
   void dispose() {
@@ -45,15 +44,15 @@ class _FaceDetectorViewState extends State<FaceDetectorView> {
     return CameraView(
       customPaint: _customPaint,
       text: _text,
-      onImage: (inputImage, isRecording, stop) {
-        processImage(inputImage, isRecording, stop);
+      onImage: (path, inputImage, isRecording, stop) {
+        processImage(path, inputImage, isRecording, stop);
       },
       initialDirection: CameraLensDirection.front,
     );
   }
 
   Future<String?> getStorageDirectory() async {
-      return (await getApplicationDocumentsDirectory()).path;
+    return (await getApplicationDocumentsDirectory()).path;
   }
 
   Future<String> getImagePath() async {
@@ -61,18 +60,26 @@ class _FaceDetectorViewState extends State<FaceDetectorView> {
     if(!(await Directory(dir).exists())) {
       await Directory(dir).create(recursive: true);
     }
-    // log((await (await (await new Directory(dir)).list()).length).toString());
-    return dir+Uuid().v4()+'.png';
+
+    return dir+Uuid().v4()+'.jpg';
   }
 
-  Future<void> processImage(InputImage inputImage, bool isRecording, Function stop) async {
+  Future<String> saveImage(Uint8List imageData) async {
+    String filePath = await getImagePath();
+    File file = File(filePath);
+    await file.writeAsBytes(imageData);
+    return filePath;
+  }
+
+  Future<void> processImage(String? imgPath, InputImage inputImage, bool isRecording, Function stop) async {
     if (!_canProcess) return;
     if (_isBusy) return;
     _isBusy = true;
     setState(() {
       _text = '';
     });
-    final faces = await _faceDetector.processImage(inputImage);
+
+    final List<Face> faces = await _faceDetector.processImage(inputImage);
     if (inputImage.inputImageData?.size != null &&
         inputImage.inputImageData?.imageRotation != null) {
       final painter = FaceDetectorPainter(
@@ -80,68 +87,19 @@ class _FaceDetectorViewState extends State<FaceDetectorView> {
           inputImage.inputImageData!.size,
           inputImage.inputImageData!.imageRotation);
       _customPaint = CustomPaint(painter: painter);
+    }
 
-      if(faces.length==1 && isRecording){
-
-
-
-
-
-
-        //first send this file to server
-
-        // img.Command().executeThread()
-        // img.Image? src = ((await img.Command()..decodeImage(inputImage.bytes!)..executeThread()).outputImage);
-
-        // Image src = Image.memory(inputImage.bytes!);
-
-        // -----------
-        // File imgFile = File(image_path);
-        // imgFile.writeAsBytes(inputImage.bytes!.toList());
-        // File('/data/user/0/com.voter_registration.voter_registration/app_flutter/fe49bd0e-7108-4313-8cd1-a1cb8dd087d6.png').readAsBytesSync();
-        //------------
-
-        // Image.
-        // img.Image destImage = img.copyCrop(img.Image.empty(), x: faces.last.headEulerAngleX!.toInt(), y:faces.last.headEulerAngleY!.toInt(), width: faces.last.boundingBox.width.toInt(), height: faces.last.boundingBox.height.toInt());
-        // log((src == null)?'null':'not');
-
-
-        // ((img.Command()..decodeImage(inputImage.bytes!)).execute());
-        // log((inputImage.bytes == null)?'null':'not');
-        // pass x and y(offset),width, height value of face bounding box you detected
-        // img.Image destImage = img.copyCrop(src!, x: faces.last.headEulerAngleX!.toInt(), y:faces.last.headEulerAngleY!.toInt(), width: faces.last.boundingBox.width.toInt(), height: faces.last.boundingBox.height.toInt());
-        // log('message');
-        // final png = img.encodePng(destImage);
-        // var f = await File(getStorageDirectory().toString()+Uuid().v4()+'.png').writeAsBytes(png);
-        // log(f.path);
-
-        // On platforms that support Isolates, execute the image commands asynchronously on an isolate thread.
-        // Otherwise, the commands will be executed synchronously.
-        // final jk = await cmd.executeThread();
-        // jk.
-
-        // final cmd = img.Command()..decodeImage(inputImage.bytes!);
-        // img.Command lop = await cmd.executeThread();
-        // // cmd.outputImage
-        // if(inputImage.bytes == null){
-        //   log('null');
-        // }else{
-        //   log('image exists');
-        // }
-
-        //pass x and y(offset),width, height value of face bounding box you detected
-        // img.Image destImage = img.copyCrop((img.Command()..decodeImage(inputImage.bytes!)).outputImage!, x: faces.last.headEulerAngleX!.toInt(), y:faces.last.headEulerAngleY!.toInt(), width: faces.last.boundingBox.width.toInt(), height: faces.last.boundingBox.height.toInt());
-        // log(destImage.height.toString());
-
-
-        // _confirmedImages.add(inputImage);
-        // if(_confirmedImages.length>=widget.neededImages){
-        //   widget.setImages(_confirmedImages);
-        //   stop();
-        //   Navigator.of(context).pop();
-        // }
+    if (faces.length == 1 && isRecording) {
+      if (imgPath != null) {
+        _imgPaths.add(imgPath);
+      }
+      if (_imgPaths.length >= widget.neededImages) {
+        widget.setPaths(_imgPaths);
+        stop();
+        Navigator.of(context).pop();
       }
     }
+
     _isBusy = false;
     if (mounted) {
       setState(() {});

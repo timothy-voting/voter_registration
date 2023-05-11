@@ -1,9 +1,10 @@
-import 'dart:developer';
+import 'dart:async';
+import 'dart:convert';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
-// import 'package:google_mlkit_commons/google_mlkit_commons.dart';
+import 'fingerprint.dart';
 import 'vision_detector_views/face_detector_view.dart';
+import 'package:http/http.dart' as http;
 
 List<CameraDescription> cameras = [];
 
@@ -38,15 +39,173 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   bool hidePass = true;
   bool hideConfirmPass = true;
-  late List<InputImage> images = [];
+  List<String> imagePaths = [];
+  String fingerPrintImagePath = "";
+  String _faceValidationText = "";
+  String _fingerValidationText = "";
+  final TextEditingController _studentNumber = TextEditingController();
   final TextEditingController _pass = TextEditingController();
   final TextEditingController _confirmPass = TextEditingController();
   final GlobalKey<FormState> _form = GlobalKey<FormState>();
   final neededImages = 5;
+  List<int> storedImageIds = [];
+  List<int> storedFingerIds = [];
+  Map<String, String> headers = {
+    "Content-type": "application/json",
+    "Accept": "application/json",
+    'X-Requested-With': 'XMLHttpRequest'
+  };
+
+  _reset(){
+    setState(() {
+      hidePass = true;
+      hideConfirmPass = true;
+      imagePaths = [];
+      fingerPrintImagePath = "";
+      _studentNumber.clear();
+      _pass.clear();
+      _confirmPass.clear();
+      storedImageIds = [];
+    });
+  }
+
+  Future<bool> _checkStudent() async {
+    bool isStudent = false;
+    try {
+      var response = await http.get(
+          Uri.parse('http://192.168.8.113:8000/api/is_student?student_no='+_studentNumber.text),
+          headers: headers
+      );
+      if(response.statusCode == 200){
+        isStudent = (jsonDecode(response.body) as Map<String, dynamic>)["isStudent"] as bool;
+        if(!isStudent)
+          _snackBarAlert('The student number is unknown');
+      }else{
+        _snackBarAlert(response.body);
+      }
+    } catch(e) {
+      _snackBarAlert(e.toString());
+    }
+    return isStudent;
+  }
+
+  Future<void> _sendFaces() async {
+    List<int> imageIds = storedImageIds.toList();
+    List<String> imgPaths = imagePaths.toList();
+
+    imgPaths.forEach((path) async {
+      try {
+        var request = http.MultipartRequest(
+            'POST', Uri.parse('http://192.168.8.113:8000/api/face'));
+        request.files.add(await http.MultipartFile.fromPath('file', path));
+
+        http.StreamedResponse response = await request.send();
+        if (response.statusCode == 200) {
+          Map<String, dynamic> resp = jsonDecode(
+              await response.stream.bytesToString()) as Map<String, dynamic>;
+          imageIds.add(resp['id'] as int);
+          imgPaths.remove(path);
+          setState(() {
+            storedImageIds = imageIds;
+            imagePaths = imgPaths;
+          });
+        }
+        else {
+          _snackBarAlert(response.reasonPhrase ?? '');
+        }
+      }
+      catch (e) {
+        _snackBarAlert('error: ' + e.toString());
+      }
+    });
+  }
+
+  Future<void> _sendFingerPrint() async {
+      try {
+        var request = http.MultipartRequest(
+            'POST', Uri.parse('http://192.168.8.113:8000/api/fingerprint'));
+        request.files.add(await http.MultipartFile.fromPath('file', fingerPrintImagePath));
+
+        http.StreamedResponse response = await request.send();
+        if (response.statusCode == 200) {
+          Map<String, dynamic> resp = jsonDecode(
+              await response.stream.bytesToString()) as Map<String, dynamic>;
+          setState(() {
+            storedFingerIds = [(resp['id'] as int)];
+            fingerPrintImagePath = "";
+          });
+        }
+        else {
+          _snackBarAlert(response.reasonPhrase ?? '');
+        }
+      }
+      catch (e) {
+        _snackBarAlert('error: ' + e.toString());
+      }
+  }
+
+  _sendCredentials() async {
+    try {
+      var response = await http.post(
+          Uri.parse('http://192.168.8.113:8000/api/register'),
+          headers: headers,
+          body: jsonEncode({
+            'student_no': _studentNumber.text,
+            'password': _pass.text,
+            'password_confirmation': _confirmPass.text,
+            'faces': storedImageIds,
+            'fingerprints': storedFingerIds
+          })
+      );
+      if(response.statusCode == 200){
+        _snackBarAlert('Student registered successfully');
+        _reset();
+      }
+      else{
+        _snackBarAlert(response.body);
+      }
+    } catch (e) {
+      _snackBarAlert(e.toString());
+    }
+  }
+
+  bool _validate(){
+    bool formValidated = _form.currentState!.validate();
+    bool facesValidated = imagePaths.length>=neededImages;
+    bool fingerPrintValidated = fingerPrintImagePath.length>3;
+    setState(() {
+      _faceValidationText = facesValidated?'':'Please scan';
+      _fingerValidationText = fingerPrintValidated?'':'Please scan';
+    });
+    return formValidated && facesValidated && fingerPrintValidated;
+  }
+
+  _post() async {
+    if(_validate()) {
+      _checkStudent().then((isStudent) {
+        if (isStudent) {
+          _sendFingerPrint().then((value){
+            _sendFaces().then((value) {
+              Timer.periodic(Duration(milliseconds: 500), (timer) {
+                if (storedImageIds.length == 5 && storedFingerIds.length == 1) {
+                  timer.cancel();
+                  _sendCredentials();
+                }
+              });
+            });
+            // _sendCredentials(imageIds);
+          });
+        }
+      });
+    }
+  }
+
+  _snackBarAlert(String message){
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       appBar: AppBar(
         title: Text('Voter Registration'),
@@ -63,6 +222,7 @@ class _HomeState extends State<Home> {
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: TextFormField(
+                      controller: _studentNumber,
                       decoration: const InputDecoration(
                         suffixIcon: Icon(Icons.account_circle),
                         border: OutlineInputBorder(),
@@ -144,39 +304,72 @@ class _HomeState extends State<Home> {
                     ),
                   ),
                   SizedBox(height: 5.0),
-                  InkWell(
-                    onTap: () {
-                      if (_form.currentState!.validate()) {
-                        Navigator.push(context, MaterialPageRoute(
-                            builder: (context) =>
-                                FaceDetectorView(
-                                  neededImages: neededImages,
-                                  setImages: (List<InputImage> confirmedImages) {
-                                    setState(() {
-                                      images = confirmedImages;
-                                    });
-                                  },))
-                        );
-                      }
-                    },
-                    child: Column(
-                      children: [
-                        Image.asset('assets/face.jpeg'),
-                        Text('Scan Face', style: TextStyle(fontSize: 18),),
-                      ],
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      InkWell(
+                        onTap: () {
+                            Navigator.push(context, MaterialPageRoute(
+                                builder: (context) =>
+                                    FaceDetectorView(
+                                      neededImages: neededImages,
+                                      setPaths: (List<String> imgPaths) {
+                                        setState(() {
+                                          imagePaths = imgPaths;
+                                        });
+                                      },))
+                            );
+                        },
+                        child: Column(
+                          children: [
+                            Image.asset('assets/face.jpeg', width: 100, height: 100,),
+                            Text('Scan Face', style: TextStyle(fontSize: 18)),
+                            (imagePaths.length>=neededImages)?
+                            Icon(Icons.check_circle, color: Colors.green):
+                            Icon(Icons.circle_outlined),
+                            Text(_faceValidationText, style: TextStyle(fontSize: 14, color: Colors.red)),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: 16,
+                      ),
+                      InkWell(
+                        onTap: () {
+                            Navigator.push(context, MaterialPageRoute(
+                                builder: (context) => FingerPrint(
+                                  setFilePath: (String filePath) {
+                                      setState(() {
+                                        fingerPrintImagePath = filePath;
+                                      });
+                                  })
+                            )
+                            );
+                        },
+                        child: Column(
+                          children: [
+                            Icon(Icons.fingerprint, color: Color(0xff565656), size: 100,),
+                            Text('Scan Fingerprint', style: TextStyle(fontSize: 18),),
+                            (fingerPrintImagePath.length>3)?
+                            Icon(Icons.check_circle, color: Colors.green):
+                            Icon(Icons.circle_outlined),
+                            Text(_fingerValidationText, style: TextStyle(fontSize: 14, color: Colors.red)),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                   SizedBox(height: 20.0),
-                  (images.length>=neededImages && _form.currentState!.validate())?
                   ElevatedButton(
                       style: ButtonStyle(
                           backgroundColor: MaterialStatePropertyAll<Color>(Colors.blue)
                       ),
                       onPressed: (){
-                          log(images[4].toJson().toString());
+                        _post();
                       },
-                      child: Text('Submit', style: TextStyle(color: Colors.white, fontSize: 22))
-                  ):Text('')
+                      child: Text('Submit', style: TextStyle(color: Colors.white, fontSize: 26))
+                  )
                 ],
               ),
             ),

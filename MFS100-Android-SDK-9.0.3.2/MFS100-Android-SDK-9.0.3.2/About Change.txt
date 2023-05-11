@@ -1,0 +1,12 @@
+Version 9.0.3.2
+mantra.mfs100.jar file revised as per .so changed
+
+Updates:
+--------
+1) Include 64 bit architecture (arm64-v8a and x86_64)
+2) Match ISO score range change from 0 to 1000 (Previous was 0 to  10000)
+3) Minimum matching score 96
+4) Android 12 usb permission supported
+
+
+

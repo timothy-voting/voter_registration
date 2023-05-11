@@ -1,9 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_commons/google_mlkit_commons.dart';
-
 import '../main.dart';
 
 class CameraView extends StatefulWidget {
@@ -16,7 +16,7 @@ class CameraView extends StatefulWidget {
       : super(key: key);
   final CustomPaint? customPaint;
   final String? text;
-  final Function(InputImage inputImage, bool recording, Function stop) onImage;
+  final Function(String? imagePath, InputImage inputImage, bool recording, Function stop) onImage;
   final CameraLensDirection initialDirection;
 
   @override
@@ -28,7 +28,8 @@ class _CameraViewState extends State<CameraView> {
   int _cameraIndex = -1;
   double zoomLevel = 0.0, minZoomLevel = 0.0, maxZoomLevel = 0.0;
   bool _changingCameraLens = false;
-  bool _isRecording = false;
+  bool _isTaking = false;
+  Timer? timer;
 
   @override
   void initState() {
@@ -65,24 +66,28 @@ class _CameraViewState extends State<CameraView> {
   void dispose() {
     _stopLiveFeed();
     super.dispose();
+    if(timer != null){
+      timer!.cancel();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isRecording?'Recording':'When Face In Frame, Tap'),
+        title: Text(_isTaking?'Recording':'When Face In Frame, Tap'),
         actions: [
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: _isRecording? null :InkWell(
+            child: _isTaking? null :InkWell(
               child: Icon(Icons.touch_app),
               onTap: (){
                 ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Please keep your face in the read frame'))
                 );
                 setState(() {
-                  _isRecording = true;
+                  _isTaking = true;
+                  _startTaking();
                 });
               },
             ),
@@ -166,6 +171,15 @@ class _CameraViewState extends State<CameraView> {
     );
   }
 
+  Future _startTaking() async {
+    await _controller?.stopImageStream();
+    timer = Timer.periodic(Duration(seconds: 1), (timer) async {
+      XFile? file = await _controller?.takePicture();
+      final inputImage = InputImage.fromFilePath(file!.path);
+      widget.onImage(file.path, inputImage, _isTaking, _stopLiveFeed);
+    });
+  }
+
   Future _startLiveFeed() async {
     final camera = cameras[_cameraIndex];
     _controller = CameraController(
@@ -206,6 +220,7 @@ class _CameraViewState extends State<CameraView> {
 
   Future _processCameraImage(CameraImage image) async {
     final WriteBuffer allBytes = WriteBuffer();
+
     for (final Plane plane in image.planes) {
       allBytes.putUint8List(plane.bytes);
     }
@@ -242,6 +257,6 @@ class _CameraViewState extends State<CameraView> {
 
     final inputImage =
     InputImage.fromBytes(bytes: bytes, inputImageData: inputImageData);
-    widget.onImage(inputImage, _isRecording, _stopLiveFeed);
+    widget.onImage(null, inputImage, _isTaking, _stopLiveFeed);
   }
 }
