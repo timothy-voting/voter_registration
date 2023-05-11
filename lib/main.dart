@@ -55,6 +55,7 @@ class _HomeState extends State<Home> {
     "Accept": "application/json",
     'X-Requested-With': 'XMLHttpRequest'
   };
+  final String address = "http://104.248.63.15/api/";
 
   _reset(){
     setState(() {
@@ -73,7 +74,7 @@ class _HomeState extends State<Home> {
     bool isStudent = false;
     try {
       var response = await http.get(
-          Uri.parse('http://192.168.8.113:8000/api/is_student?student_no='+_studentNumber.text),
+          Uri.parse(address+'is_student?student_no='+_studentNumber.text),
           headers: headers
       );
       if(response.statusCode == 200){
@@ -96,7 +97,7 @@ class _HomeState extends State<Home> {
     imgPaths.forEach((path) async {
       try {
         var request = http.MultipartRequest(
-            'POST', Uri.parse('http://192.168.8.113:8000/api/face'));
+            'POST', Uri.parse(address+'face'));
         request.files.add(await http.MultipartFile.fromPath('file', path));
 
         http.StreamedResponse response = await request.send();
@@ -123,7 +124,7 @@ class _HomeState extends State<Home> {
   Future<void> _sendFingerPrint() async {
       try {
         var request = http.MultipartRequest(
-            'POST', Uri.parse('http://192.168.8.113:8000/api/fingerprint'));
+            'POST', Uri.parse(address+'fingerprint'));
         request.files.add(await http.MultipartFile.fromPath('file', fingerPrintImagePath));
 
         http.StreamedResponse response = await request.send();
@@ -147,7 +148,7 @@ class _HomeState extends State<Home> {
   _sendCredentials() async {
     try {
       var response = await http.post(
-          Uri.parse('http://192.168.8.113:8000/api/register'),
+          Uri.parse(address+'register'),
           headers: headers,
           body: jsonEncode({
             'student_no': _studentNumber.text,
