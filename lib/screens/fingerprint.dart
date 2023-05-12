@@ -147,6 +147,7 @@ class _FingerPrintState extends State<FingerPrint> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Scan Fingerprint'),
+        backgroundColor: Colors.green,
       ),
       body: Container(
         child: Column(
@@ -244,7 +245,7 @@ class _FingerPrintState extends State<FingerPrint> {
                 borderRadius: BorderRadius.circular(3),
                 color: Colors.white,
                 boxShadow: [
-                  BoxShadow(color: Colors.blue, spreadRadius: 2),
+                  BoxShadow(color: Colors.green, spreadRadius: 2),
                 ],
               ),
             ),
@@ -257,7 +258,7 @@ class _FingerPrintState extends State<FingerPrint> {
                     borderRadius: BorderRadius.circular(3),
                     color: Colors.white,
                     boxShadow: [
-                      BoxShadow(color: Colors.blue, spreadRadius: 2),
+                      BoxShadow(color: Colors.green, spreadRadius: 2),
                     ],
                   ),
                   child: SingleChildScrollView(
@@ -322,7 +323,10 @@ class FingerButton extends StatelessWidget {
     return ElevatedButton(
         onPressed: onPressed,
         child: Text(text, style: TextStyle(fontSize: 18)),
-      style: ButtonStyle(fixedSize: MaterialStateProperty.all(Size(width, 36))),
+      style: ButtonStyle(
+          fixedSize: MaterialStateProperty.all(Size(width, 36)),
+        backgroundColor: MaterialStateProperty.all(Colors.green)
+      ),
     );
   }
 }

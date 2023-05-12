@@ -4,7 +4,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_commons/google_mlkit_commons.dart';
-import '../main.dart';
+import 'package:vote/main.dart';
 
 class CameraView extends StatefulWidget {
   const CameraView(
@@ -75,6 +75,7 @@ class _CameraViewState extends State<CameraView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Colors.green,
         title: Text(_isTaking?'Recording':'When Face In Frame, Tap'),
         actions: [
           Padding(
@@ -113,6 +114,7 @@ class _CameraViewState extends State<CameraView> {
                 : Icons.flip_camera_android_outlined,
             size: 40,
           ),
+          backgroundColor: Colors.green,
         ));
   }
 
@@ -152,6 +154,9 @@ class _CameraViewState extends State<CameraView> {
             left: 50,
             right: 50,
             child: Slider(
+              activeColor: Colors.green,
+              secondaryActiveColor: Colors.green,
+              inactiveColor: Colors.green,
               value: zoomLevel,
               min: minZoomLevel,
               max: maxZoomLevel,

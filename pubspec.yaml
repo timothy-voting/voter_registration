@@ -1,5 +1,5 @@
-name: voter_registration
-description: voter registration mobile application
+name: vote
+description: A voting project that authenticates a faceID and a fingerprint.
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -42,6 +42,10 @@ dependencies:
   path_provider: ^2.0.14
   uuid: ^3.0.7
   http: ^0.13.5
+  google_fonts: ^4.0.3
+  flutter_secure_storage: ^8.0.0
+  web_socket_client: ^0.1.0-dev.3
+  flutter_bloc: ^8.1.2
 
 dev_dependencies:
   flutter_test:
