@@ -6,7 +6,7 @@
     <uses-permission android:name="android.permission.USB_PERMISSION" />
 
     <application
-        android:label="voter_registration"
+        android:label="Voter Registration"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="true"
